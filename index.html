@@ -1,0 +1,1536 @@
+import { useState, useEffect, useRef, useCallback } from “react”;
+
+const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Fredoka:wght@400;600;700&display=swap');`;
+
+/* ═══════════════════════════════════════════════════════
+GLOBAL STYLES
+═══════════════════════════════════════════════════════ */
+const GLOBAL_CSS = `
+${FONTS}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a1a; }
+
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+@keyframes floatSlow { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes walkCycle {
+0%   { transform: translateX(0) scaleX(1); }
+49%  { transform: translateX(0) scaleX(1); }
+50%  { transform: translateX(2px) scaleX(1); }
+100% { transform: translateX(0) scaleX(1); }
+}
+@keyframes starTwinkle {
+0%,100% { opacity:.3; transform:scale(1); }
+50% { opacity:1; transform:scale(1.4); }
+}
+@keyframes bubbleIn {
+0% { transform:scale(0) translateY(20px); opacity:0; }
+70% { transform:scale(1.06) translateY(-4px); }
+100% { transform:scale(1) translateY(0); opacity:1; }
+}
+@keyframes choiceIn {
+0% { transform:translateY(30px) scale(.9); opacity:0; }
+100% { transform:translateY(0) scale(1); opacity:1; }
+}
+@keyframes xpFill { from{width:var(–from)} to{width:var(–to)} }
+@keyframes coinSpin {
+0%{transform:rotateY(0deg)} 100%{transform:rotateY(360deg)}
+}
+@keyframes celebConfetti {
+0%   { transform:translateY(0) rotate(0deg); opacity:1; }
+100% { transform:translateY(-300px) rotate(720deg); opacity:0; }
+}
+@keyframes rainDrop {
+0%   { transform:translateY(-30px); opacity:0; }
+20%  { opacity:.8; }
+100% { transform:translateY(220px); opacity:0; }
+}
+@keyframes shake {
+0%,100%{transform:translateX(0)}
+20%{transform:translateX(-8px)}
+40%{transform:translateX(8px)}
+60%{transform:translateX(-5px)}
+80%{transform:translateX(5px)}
+}
+@keyframes slideSceneIn {
+from { transform:translateX(100%); opacity:0; }
+to   { transform:translateX(0); opacity:1; }
+}
+@keyframes titlePop {
+0%   { transform:scale(0) rotate(-10deg); opacity:0; }
+60%  { transform:scale(1.1) rotate(2deg); }
+100% { transform:scale(1) rotate(0deg); opacity:1; }
+}
+@keyframes scanline {
+0%   { transform:translateY(-100%); }
+100% { transform:translateY(100vh); }
+}
+@keyframes glowPulse {
+0%,100% { box-shadow: 0 0 20px rgba(255,210,50,.3), 0 0 40px rgba(255,210,50,.1); }
+50%      { box-shadow: 0 0 40px rgba(255,210,50,.6), 0 0 80px rgba(255,210,50,.2); }
+}
+@keyframes heartBeat {
+0%,100%{transform:scale(1)} 14%{transform:scale(1.3)} 28%{transform:scale(1)} 42%{transform:scale(1.2)} 70%{transform:scale(1)}
+}
+@keyframes walkIn {
+from { transform: translateX(-120px); opacity:0; }
+to   { transform: translateX(0); opacity:1; }
+}
+@keyframes blink {
+0%,90%,100%{transform:scaleY(1)} 95%{transform:scaleY(0.08)}
+}
+@keyframes tailWag {
+0%,100%{transform:rotate(-10deg)} 50%{transform:rotate(15deg)}
+}
+@keyframes cloudDrift {
+from{transform:translateX(-80px)} to{transform:translateX(calc(100vw + 80px))}
+}
+@keyframes treeWay {
+0%,100%{transform:rotate(-1deg) translateX(0)} 50%{transform:rotate(1deg) translateX(1px)}
+}
+@keyframes cityLight {
+0%,100%{opacity:.6} 50%{opacity:1}
+}
+@keyframes moonGlow {
+0%,100%{filter:drop-shadow(0 0 8px #fde68a)} 50%{filter:drop-shadow(0 0 20px #fde68a)}
+}
+@keyframes bslYes {
+0%,100% { transform: translateY(0) rotate(0deg); }
+30%      { transform: translateY(14px) rotate(10deg); }
+60%      { transform: translateY(14px) rotate(10deg); }
+80%      { transform: translateY(0) rotate(0deg); }
+}
+@keyframes bslNo {
+0%,100% { transform: translateX(0); }
+25%     { transform: translateX(-10px); }
+75%     { transform: translateX(10px); }
+}
+@keyframes bslForest {
+0%,100% { transform: rotate(0deg) translateY(0); }
+40%     { transform: rotate(-10deg) translateY(-6px); }
+70%     { transform: rotate(8deg) translateY(-4px); }
+}
+@keyframes bslCity {
+0%,100% { transform: translateY(0); }
+35%     { transform: translateY(12px); }
+55%     { transform: translateY(12px); }
+75%     { transform: translateY(0); }
+}
+`;
+
+/* ═══════════════════════════════════════════════════════
+COLOUR PALETTE
+═══════════════════════════════════════════════════════ */
+const C = {
+night:  “#0a0a1a”,
+deep:   “#0f1729”,
+panel:  “#141d35”,
+border: “#1e3060”,
+accent: “#ffd232”,
+accentB:”#ff6b6b”,
+green:  “#4ade80”,
+blue:   “#60a5fa”,
+purple: “#a78bfa”,
+text:   “#e8e8ff”,
+dim:    “#7a80a0”,
+};
+
+/* ═══════════════════════════════════════════════════════
+STARFIELD
+═══════════════════════════════════════════════════════ */
+function Starfield() {
+const stars = useRef(
+Array.from({length:80},(_,i)=>({
+x: Math.random()*100, y: Math.random()*100,
+s: .5+Math.random()*2.5, d: Math.random()*4+“s”,
+o: .2+Math.random()*.8,
+}))
+).current;
+return (
+<div style={{position:“absolute”,inset:0,overflow:“hidden”,zIndex:0}}>
+{stars.map((s,i)=>(
+<div key={i} style={{
+position:“absolute”, left:`${s.x}%`, top:`${s.y}%`,
+width:s.s, height:s.s, borderRadius:“50%”, background:“white”,
+opacity:s.o, animation:`starTwinkle ${s.d} ease-in-out infinite`,
+animationDelay:`${Math.random()*4}s`,
+}}/>
+))}
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+ANIMATED CLOUD
+═══════════════════════════════════════════════════════ */
+function Cloud({top,size,speed,delay,opacity=.18}) {
+return (
+<div style={{
+position:“absolute”, top, left:-size*2, width:size*2, height:size*.6,
+animation:`cloudDrift ${speed}s ${delay}s linear infinite`,
+opacity, zIndex:1,
+}}>
+<svg viewBox=“0 0 120 40” style={{width:“100%”,height:“100%”}}>
+<ellipse cx="60" cy="28" rx="55" ry="16" fill="white"/>
+<ellipse cx="40" cy="20" rx="28" ry="18" fill="white"/>
+<ellipse cx="75" cy="18" rx="24" ry="16" fill="white"/>
+</svg>
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+SCENE BACKGROUNDS
+═══════════════════════════════════════════════════════ */
+function NightVillageBg() {
+return (
+<div style={{position:“absolute”,inset:0,overflow:“hidden”}}>
+{/* sky gradient */}
+<div style={{position:“absolute”,inset:0,background:“linear-gradient(180deg,#0a0a2e 0%,#1a1040 40%,#2d1b5e 70%,#1a0a20 100%)”}}/>
+{/* moon */}
+<div style={{position:“absolute”,top:32,right:“18%”,animation:“moonGlow 4s ease-in-out infinite”}}>
+<svg width="64" height="64" viewBox="0 0 64 64">
+<circle cx="32" cy="32" r="28" fill="#fde68a"/>
+<circle cx="44" cy="20" r="20" fill="#1a1040"/>
+</svg>
+</div>
+<Cloud top="8%" size={120} speed={28} delay={0}/>
+<Cloud top="14%" size={80}  speed={38} delay={6}/>
+{/* hills */}
+<svg style={{position:“absolute”,bottom:0,left:0,width:“100%”}} viewBox=“0 0 800 200” preserveAspectRatio=“none”>
+<ellipse cx="200" cy="200" rx="280" ry="100" fill="#0f1a0f"/>
+<ellipse cx="600" cy="210" rx="260" ry="90" fill="#0a140a"/>
+<ellipse cx="400" cy="210" rx="200" ry="80" fill="#121a12"/>
+</svg>
+{/* distant trees silhouette */}
+{[60,140,220,300,380,460,540,620,700,780].map((x,i)=>(
+<svg key={i} style={{position:“absolute”,bottom:60+Math.sin(i)*20,left:x-20}} width=“40” height=“80” viewBox=“0 0 40 80”>
+<polygon points="20,0 0,50 40,50" fill="#0a1a0a"/>
+<rect x="16" y="50" width="8" height="20" fill="#060e06"/>
+</svg>
+))}
+{/* ground */}
+<div style={{position:“absolute”,bottom:0,left:0,right:0,height:80,background:“linear-gradient(180deg,#0a1a0a,#050d05)”}}/>
+</div>
+);
+}
+
+function ForestBg() {
+return (
+<div style={{position:“absolute”,inset:0,overflow:“hidden”}}>
+<div style={{position:“absolute”,inset:0,background:“linear-gradient(180deg,#0d2010 0%,#0a3018 40%,#0d2510 100%)”}}/>
+{/* light rays */}
+{[20,35,55,72].map((x,i)=>(
+<div key={i} style={{
+position:“absolute”,top:0,left:`${x}%`,
+width:3+i, height:“70%”,
+background:`linear-gradient(180deg,rgba(255,230,100,.12),transparent)`,
+transform:`rotate(${-5+i*3}deg)`,transformOrigin:“top center”,
+}}/>
+))}
+{/* background trees */}
+{[0,80,160,240,320,400,480,560,640,720].map((x,i)=>(
+<svg key={i} style={{
+position:“absolute”,bottom:50,left:x,
+animation:`treeWay ${3+i*.5}s ease-in-out infinite`,
+animationDelay:`${i*.3}s`,
+}} width=“80” height=“180” viewBox=“0 0 80 180”>
+<polygon points=“40,0 2,110 78,110” fill={i%2===0?”#1a4a1a”:”#154015”}/>
+<polygon points=“40,30 5,130 75,130” fill={i%2===0?”#155015”:”#1a5a1a”}/>
+<polygon points=“40,60 8,148 72,148” fill={i%2===0?”#0f400f”:”#134513”}/>
+<rect x="32" y="148" width="16" height="32" fill="#3d1a00"/>
+</svg>
+))}
+{/* ground */}
+<div style={{position:“absolute”,bottom:0,left:0,right:0,height:60,background:“linear-gradient(180deg,#0a2010,#050e05)”}}/>
+{/* fireflies */}
+{[15,30,50,65,80].map((x,i)=>(
+<div key={i} style={{
+position:“absolute”,left:`${x}%`,bottom:`${30+i*8}%`,
+width:4,height:4,borderRadius:“50%”,background:”#fffb80”,
+boxShadow:“0 0 8px #fffb80”,
+animation:`starTwinkle ${1.5+i*.4}s ease-in-out infinite`,
+animationDelay:`${i*.6}s`,
+}}/>
+))}
+</div>
+);
+}
+
+function CityBg() {
+const buildings = [
+{x:0,  w:80, h:220, c:”#0d1b2e”},
+{x:70, w:60, h:280, c:”#0a1525”},
+{x:120,w:100,h:180, c:”#0f2035”},
+{x:210,w:70, h:310, c:”#0a1830”},
+{x:270,w:90, h:200, c:”#0d2040”},
+{x:350,w:60, h:260, c:”#0a1525”},
+{x:400,w:110,h:190, c:”#0f1e32”},
+{x:500,w:80, h:300, c:”#0a1525”},
+{x:570,w:70, h:170, c:”#0d2035”},
+{x:630,w:100,h:240, c:”#0a1830”},
+{x:720,w:80, h:210, c:”#0f2040”},
+];
+return (
+<div style={{position:“absolute”,inset:0,overflow:“hidden”}}>
+<div style={{position:“absolute”,inset:0,background:“linear-gradient(180deg,#020812 0%,#050f20 40%,#0a1830 100%)”}}/>
+{/* moon/sun glow */}
+<div style={{position:“absolute”,top:20,left:“15%”,width:80,height:80,borderRadius:“50%”,background:“radial-gradient(circle,#fde68a 0%,transparent 70%)”,opacity:.3}}/>
+{/* buildings */}
+<svg style={{position:“absolute”,bottom:0,left:0,width:“100%”}} viewBox=“0 0 800 320” preserveAspectRatio=“none”>
+{buildings.map((b,i)=>(
+<g key={i}>
+<rect x={b.x} y={320-b.h} width={b.w} height={b.h} fill={b.c}/>
+{/* windows */}
+{Array.from({length:Math.floor(b.h/28)}).map((*,r)=>
+Array.from({length:Math.floor(b.w/18)}).map((*,c)=>(
+<rect key={`${r}-${c}`}
+x={b.x+4+c*18} y={320-b.h+8+r*28}
+width={10} height={14}
+fill={Math.random()>.4?”#fbbf24”:”#1a3060”}
+opacity={.7+Math.random()*.3}
+style={{animation:`cityLight ${2+Math.random()*3}s ease-in-out infinite`,animationDelay:`${Math.random()*4}s`}}
+/>
+))
+)}
+</g>
+))}
+{/* ground */}
+<rect x="0" y="300" width="800" height="20" fill="#050d1e"/>
+</svg>
+{/* neon ground glow */}
+<div style={{position:“absolute”,bottom:0,left:0,right:0,height:40,background:“linear-gradient(transparent,rgba(96,165,250,.08))”}}/>
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+MAIN CHARACTER (Pixel-art style cat-eared girl)
+═══════════════════════════════════════════════════════ */
+function Character({mood, walking}) {
+const eyeClose = mood===“sad”;
+const smile = mood===“excited”||mood===“adventure”||mood===“wave”;
+const bodyCol = {
+wave:”#6366f1”, excited:”#f59e0b”, sad:”#64748b”,
+pleading:”#8b5cf6”, adventure:”#10b981”, normal:”#6366f1”
+}[mood] || “#6366f1”;
+
+return (
+<svg viewBox=“0 0 100 140” style={{
+width:“100%”, height:“100%”,
+filter:`drop-shadow(0 8px 24px ${bodyCol}88)`,
+animation: walking ? “walkIn .6s ease-out” : “float 3s ease-in-out infinite”,
+}}>
+{/* Shadow */}
+<ellipse cx="50" cy="136" rx="22" ry="5" fill="rgba(0,0,0,.4)"/>
+{/* Body */}
+<rect x="32" y="80" width="36" height="44" rx="10" fill={bodyCol}/>
+{/* Scarf */}
+<rect x=“30” y=“80” width=“40” height=“14” rx=“7” fill={mood===“sad”?”#94a3b8”:”#f472b6”}/>
+{/* Arms */}
+<rect x="18" y="82" width="14" height="28" rx="7" fill={bodyCol}/>
+<rect x=“68” y=“82” width=“14” height=“28” rx=“7” fill={bodyCol}
+style={mood===“wave”?{transformOrigin:“68px 82px”,animation:“tailWag .6s ease-in-out infinite”}:{}}
+/>
+{/* Legs */}
+<rect x="36" y="116" width="12" height="24" rx="6" fill={bodyCol}/>
+<rect x="52" y="116" width="12" height="24" rx="6" fill={bodyCol}/>
+{/* Feet */}
+<ellipse cx="42" cy="139" rx="9" ry="5" fill="#1e293b"/>
+<ellipse cx="58" cy="139" rx="9" ry="5" fill="#1e293b"/>
+{/* Neck */}
+<rect x="42" y="68" width="16" height="14" rx="5" fill="#fde68a"/>
+{/* Head */}
+<ellipse cx="50" cy="50" rx="28" ry="30" fill="#fef3c7"/>
+{/* Cat ears */}
+<polygon points="22,26 14,6 34,22" fill={bodyCol}/>
+<polygon points="78,26 86,6 66,22" fill={bodyCol}/>
+<polygon points="25,24 19,12 32,22" fill="#fca5a5"/>
+<polygon points="75,24 81,12 68,22" fill="#fca5a5"/>
+{/* Hair */}
+<ellipse cx="50" cy="24" rx="26" ry="14" fill="#7c3aed"/>
+<rect x="24" y="24" width="10" height="22" rx="5" fill="#7c3aed"/>
+<rect x="66" y="24" width="10" height="22" rx="5" fill="#7c3aed"/>
+{/* Eyes */}
+{eyeClose ? (
+<>
+<path d="M 36 48 Q 40 52 44 48" stroke="#1e293b" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+<path d="M 56 48 Q 60 52 64 48" stroke="#1e293b" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+</>
+) : (
+<>
+<ellipse cx=“40” cy=“48” rx=“6” ry=“7” fill=”#1e293b”
+style={{animation:“blink 4s ease-in-out infinite”}}/>
+<ellipse cx=“60” cy=“48” rx=“6” ry=“7” fill=”#1e293b”
+style={{animation:“blink 4s ease-in-out infinite”,animationDelay:”.1s”}}/>
+<circle cx="43" cy="45" r="2.5" fill="white"/>
+<circle cx="63" cy="45" r="2.5" fill="white"/>
+{/* Star highlight */}
+<circle cx="38" cy="50" r="1" fill="white"/>
+<circle cx="58" cy="50" r="1" fill="white"/>
+</>
+)}
+{/* Blush */}
+{(mood===“excited”||mood===“wave”||mood===“pleading”) &&
+<><ellipse cx="30" cy="56" rx="8" ry="5" fill="#fca5a5" opacity=".5"/>
+<ellipse cx="70" cy="56" rx="8" ry="5" fill="#fca5a5" opacity=".5"/></>}
+{/* Mouth */}
+{smile
+? <path d="M 42 60 Q 50 70 58 60" stroke="#1e293b" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+: mood===“sad”
+? <path d="M 42 66 Q 50 58 58 66" stroke="#1e293b" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+: <path d="M 42 62 Q 50 66 58 62" stroke="#1e293b" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+}
+{/* Nose */}
+<ellipse cx="50" cy="58" rx="5" ry="3.5" fill="#fca5a5"/>
+{/* Tail */}
+<path d=“M 68 115 Q 90 100 82 82” stroke={bodyCol} strokeWidth=“8” fill=“none” strokeLinecap=“round”
+style={{animation:“tailWag 1.2s ease-in-out infinite”,transformOrigin:“68px 115px”}}/>
+</svg>
+);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+BSL HAND ANIMATIONS  —  Option 2 + 3
+─────────────────────────────────────────────────────────────
+Each sign is drawn as a detailed SVG hand (skin, knuckles,
+nails, palm shading, wrist) and animated through a sequence
+of keyframe “poses” using React useEffect frame cycling.
+
+Signs implemented:
+YES    – right fist, knuckles forward, nods forward×2
+NO     – both fists pinky-up, tap inward×2  (2 hands)
+FOREST – dominant flat hand rises from non-dom elbow, sways
+CITY   – dominant index taps non-dominant index tip ×2
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Skin tone palette ─────────────────────────────────────── */
+const S = {
+light:  “#f5c898”,   // dorsal highlight
+mid:    “#e8a870”,   // main dorsal
+dark:   “#c87840”,   // shadow / crease
+palm:   “#dda060”,   // palm face (slightly darker)
+deep:   “#a05828”,   // deep crease
+nail:   “#f0d0b8”,   // nail plate
+nailRim:”#d09878”,   // nail rim / lunula
+white:  “rgba(255,255,255,0.22)”,  // knuckle hi
+arm:    “#d09060”,   // forearm
+};
+
+/* ── useFrames: cycles through an array of frame indices ─── */
+function useFrames(frames, ms=120) {
+const [i, setI] = useState(0);
+useEffect(()=>{
+let idx = 0;
+function tick() {
+idx = (idx+1) % frames.length;
+setI(idx);
+}
+// use the per-frame timing if frames is array of [frameIdx, delay]
+// otherwise equal spacing
+const iv = setInterval(tick, ms);
+return ()=>clearInterval(iv);
+},[]);
+return frames[i];
+}
+
+/* ─────────────────────────────────────────────────────────────
+SHARED HAND PARTS
+All coords in a 120×160 viewBox, wrist at bottom-centre.
+Fingers radiate upward. We draw the dominant (right) hand
+viewed from ~35° angle — slightly side-on so depth reads.
+───────────────────────────────────────────────────────────── */
+
+/* Wrist + forearm stub */
+function Wrist({y=130, w=54}) {
+return <>
+<rect x={60-w/2} y={y} width={w} height={36} rx={16} fill={S.arm}/>
+<rect x={60-w/2+4} y={y} width={w-8} height={36} rx={13} fill={S.mid}/>
+{/* wrist crease */}
+<path d={`M${60-w/2+6} ${y+6} Q60 ${y+12} ${60+w/2-6} ${y+6}`}
+stroke={S.dark} strokeWidth=“1.2” fill=“none” strokeLinecap=“round” opacity=”.5”/>
+</>;
+}
+
+/* Palm slab — the back of the hand */
+function Palm({x=60,y=90,w=58,h=46,rx=14,rotate=0,cx=60,cy=110}) {
+return <g transform={`rotate(${rotate},${cx},${cy})`}>
+<rect x={x-w/2} y={y-h} width={w} height={h} rx={rx} fill={S.mid}/>
+{/* side shading */}
+<rect x={x-w/2} y={y-h+8} width={8} height={h-8} rx={4} fill={S.dark} opacity=".35"/>
+{/* palm crease lines */}
+<path d={`M${x-w/2+10} ${y-20} Q${x} ${y-14} ${x+w/2-10} ${y-20}`}
+stroke={S.dark} strokeWidth=“1” fill=“none” strokeLinecap=“round” opacity=”.3”/>
+<path d={`M${x-w/2+10} ${y-32} Q${x} ${y-28} ${x+w/2-10} ${y-32}`}
+stroke={S.dark} strokeWidth=“1” fill=“none” strokeLinecap=“round” opacity=”.2”/>
+</g>;
+}
+
+/* One finger — rect with rounded top, nail, knuckle lines
+x,y = base centre; len = length; w = width; curl = 0..1 (1=fully curled)
+rot = rotation angle around base (positive = curl toward palm) */
+function Finger({x, y, len, w=11, curl=0, rot=0, nail=true, cx, cy}) {
+const bx = cx ?? x;
+const by = cy ?? y;
+// curled: shorten visible length, add bend
+const vis = len * (1 - curl*0.55);
+const bend = curl * 28; // degrees of arc
+return (
+<g transform={`rotate(${rot+bend},${bx},${by})`}>
+{/* finger shaft */}
+<rect x={x-w/2} y={y-vis} width={w} height={vis} rx={w/2} fill={S.mid}/>
+{/* side shade */}
+<rect x={x-w/2} y={y-vis} width={3} height={vis} rx={1.5} fill={S.dark} opacity=".3"/>
+{/* highlight */}
+<rect x={x-w/2+3} y={y-vis+4} width={w-8} height={vis*0.4} rx={2} fill={S.white}/>
+{/* knuckle bumps */}
+{[0.35,0.6].map((t,i)=>(
+<ellipse key={i} cx={x} cy={y-vis*t} rx={w/2+1} ry={3.5}
+fill={S.mid} stroke={S.dark} strokeWidth=".8" opacity=".5"/>
+))}
+{/* knuckle crease lines */}
+<line x1={x-w/2+2} y1={y-vis*0.35} x2={x+w/2-2} y2={y-vis*0.35}
+stroke={S.deep} strokeWidth="1" strokeLinecap="round" opacity=".4"/>
+<line x1={x-w/2+2} y1={y-vis*0.6} x2={x+w/2-2} y2={y-vis*0.6}
+stroke={S.deep} strokeWidth=".8" strokeLinecap="round" opacity=".3"/>
+{/* fingernail */}
+{nail && vis>16 && <>
+<rect x={x-w/2+1.5} y={y-vis+1} width={w-3} height={vis*0.28} rx={w/2-1} fill={S.nail}/>
+<rect x={x-w/2+1.5} y={y-vis+1} width={w-3} height={vis*0.28} rx={w/2-1}
+fill="none" stroke={S.nailRim} strokeWidth=".9"/>
+{/* nail shine */}
+<rect x={x-w/2+3} y={y-vis+3} width={4} height={vis*0.1} rx={2} fill="white" opacity=".4"/>
+</>}
+</g>
+);
+}
+
+/* Thumb — shorter, wider, rotated out to side */
+function Thumb({x, y, len=38, w=14, curl=0, side=1, pivotX, pivotY}) {
+const px = pivotX ?? x;
+const py = pivotY ?? y;
+const baseRot = side>0 ? -55 : 55;  // out to side
+const curlRot = curl * 38;
+return (
+<g transform={`rotate(${baseRot+curlRot},${px},${py})`}>
+<rect x={x-w/2} y={y-len} width={w} height={len} rx={w/2} fill={S.mid}/>
+<rect x={x-w/2} y={y-len} width={3} height={len} rx={1.5} fill={S.dark} opacity=".3"/>
+<rect x={x-w/2+3} y={y-len+4} width={w-8} height={len*0.35} rx={2} fill={S.white}/>
+<ellipse cx={x} cy={y-len*0.45} rx={w/2+1} ry={3.5}
+fill={S.mid} stroke={S.dark} strokeWidth=".8" opacity=".5"/>
+<line x1={x-w/2+2} y1={y-len*0.45} x2={x+w/2-2} y2={y-len*0.45}
+stroke={S.deep} strokeWidth="1" strokeLinecap="round" opacity=".4"/>
+{/* nail */}
+<rect x={x-w/2+1.5} y={y-len+1} width={w-3} height={len*0.28} rx={w/2-1} fill={S.nail}/>
+<rect x={x-w/2+1.5} y={y-len+1} width={w-3} height={len*0.28} rx={w/2-1}
+fill="none" stroke={S.nailRim} strokeWidth=".9"/>
+</g>
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+CLOSED FIST — all fingers curled, thumb rests on side
+Used for YES (nodding fist) and as base for NO (pinky up)
+───────────────────────────────────────────────────────────── */
+function ClosedFist({x=60, y=90, scale=1, rotate=0, pivX=60, pivY=110,
+pinkyCurl=1, ringCurl=1, middleCurl=1, indexCurl=1, thumbCurl=.8}) {
+return (
+<g transform={`translate(${x-60},${y-90}) scale(${scale}) rotate(${rotate},${pivX},${pivY})`}>
+{/* knuckle row highlight — the row of knuckles facing viewer */}
+<ellipse cx="60" cy="65" rx="27" ry="6" fill={S.white} opacity=".25"/>
+
+```
+  {/* four fingers from left (pinky) to right (index) */}
+  {/* pinky */}
+  <Finger x={38} y={88} len={40} w={9}  curl={pinkyCurl}  rot={4}  cx={38} cy={88}/>
+  {/* ring */}
+  <Finger x={49} y={84} len={48} w={10} curl={ringCurl}   rot={1}  cx={49} cy={84}/>
+  {/* middle */}
+  <Finger x={60} y={82} len={52} w={11} curl={middleCurl} rot={0}  cx={60} cy={82}/>
+  {/* index */}
+  <Finger x={71} y={84} len={50} w={10} curl={indexCurl}  rot={-2} cx={71} cy={84}/>
+
+  {/* palm */}
+  <rect x="30" y="60" width="58" height="48" rx="12" fill={S.mid}/>
+  <rect x="30" y="72" width="58" height="36" rx="10" fill={S.palm} opacity=".3"/>
+  {/* palm crease */}
+  <path d="M34 76 Q60 82 86 76" stroke={S.dark} strokeWidth="1.1" fill="none" strokeLinecap="round" opacity=".3"/>
+  <path d="M34 88 Q60 94 86 88" stroke={S.dark} strokeWidth="1" fill="none" strokeLinecap="round" opacity=".2"/>
+
+  {/* thumb tucked along index side */}
+  <Thumb x={80} y={85} len={32} w={13} curl={thumbCurl} side={1} pivotX={80} pivotY={85}/>
+
+  {/* wrist */}
+  <Wrist y={106} w={52}/>
+</g>
+```
+
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+PINKY-UP FIST — closed fist but ONLY little finger extended
+Used for BSL NO (both hands)
+───────────────────────────────────────────────────────────── */
+function PinkyUpFist({x=60, y=90, scale=1, rotate=0, pivX=60, pivY=110, mirror=false}) {
+const mx = mirror ? -1 : 1;
+return (
+<g transform={`translate(${x-60},${y-90}) scale(${mx*scale},${scale}) rotate(${rotate},${pivX},${pivY})`}>
+{/* pinky EXTENDED straight up */}
+<Finger x={38} y={88} len={52} w={9}  curl={0}   rot={5}  cx={38} cy={88}/>
+{/* ring, middle, index curled */}
+<Finger x={49} y={84} len={48} w={10} curl={1}   rot={1}  cx={49} cy={84}/>
+<Finger x={60} y={82} len={52} w={11} curl={1}   rot={0}  cx={60} cy={82}/>
+<Finger x={71} y={84} len={50} w={10} curl={1}   rot={-2} cx={71} cy={84}/>
+
+```
+  {/* knuckles of curled fingers */}
+  <ellipse cx="60" cy="65" rx="20" ry="5" fill={S.white} opacity=".2"/>
+
+  {/* palm */}
+  <rect x="30" y="60" width="58" height="48" rx="12" fill={S.mid}/>
+  <rect x="30" y="72" width="58" height="36" rx="10" fill={S.palm} opacity=".3"/>
+  <path d="M34 76 Q60 82 86 76" stroke={S.dark} strokeWidth="1.1" fill="none" strokeLinecap="round" opacity=".3"/>
+
+  {/* thumb tucked */}
+  <Thumb x={80} y={85} len={32} w={13} curl={.9} side={1} pivotX={80} pivotY={85}/>
+
+  <Wrist y={106} w={52}/>
+</g>
+```
+
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+OPEN FLAT HAND — all fingers extended, palm facing viewer
+Used for FOREST (dominant hand)
+───────────────────────────────────────────────────────────── */
+function OpenFlatHand({x=60, y=90, scale=1, rotate=0}) {
+return (
+<g transform={`translate(${x-60},${y-90}) scale(${scale}) rotate(${rotate},60,110)`}>
+{/* all 4 fingers extended */}
+<Finger x={38} y={90} len={44} w={9}  curl={0} rot={6}  cx={38} cy={90}/>
+<Finger x={49} y={86} len={54} w={10} curl={0} rot={2}  cx={49} cy={86}/>
+<Finger x={60} y={84} len={58} w={11} curl={0} rot={0}  cx={60} cy={84}/>
+<Finger x={71} y={86} len={56} w={10} curl={0} rot={-2} cx={71} cy={86}/>
+
+```
+  {/* palm */}
+  <rect x="30" y="62" width="58" height="44" rx="12" fill={S.mid}/>
+  <rect x="30" y="74" width="58" height="32" rx="10" fill={S.palm} opacity=".25"/>
+  <path d="M34 74 Q60 80 86 74" stroke={S.dark} strokeWidth="1" fill="none" strokeLinecap="round" opacity=".25"/>
+  <path d="M34 86 Q60 92 86 86" stroke={S.dark} strokeWidth="1" fill="none" strokeLinecap="round" opacity=".18"/>
+
+  {/* thumb out to side */}
+  <Thumb x={80} y={84} len={38} w={13} curl={0} side={1} pivotX={80} pivotY={90}/>
+
+  <Wrist y={104} w={52}/>
+</g>
+```
+
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+INDEX POINTING — fist with only index extended upward
+Used for CITY (both hands)
+───────────────────────────────────────────────────────────── */
+function IndexPointing({x=60, y=90, scale=1, rotate=0, mirror=false}) {
+const mx = mirror ? -1 : 1;
+return (
+<g transform={`translate(${x-60},${y-90}) scale(${mx*scale},${scale}) rotate(${rotate},60,110)`}>
+{/* index only extended */}
+<Finger x={71} y={84} len={58} w={10} curl={0} rot={-2} cx={71} cy={84}/>
+{/* others curled */}
+<Finger x={38} y={88} len={40} w={9}  curl={1} rot={4}  cx={38} cy={88}/>
+<Finger x={49} y={84} len={48} w={10} curl={1} rot={1}  cx={49} cy={84}/>
+<Finger x={60} y={82} len={52} w={11} curl={1} rot={0}  cx={60} cy={82}/>
+
+```
+  {/* palm */}
+  <rect x="30" y="60" width="58" height="48" rx="12" fill={S.mid}/>
+  <rect x="30" y="72" width="58" height="36" rx="10" fill={S.palm} opacity=".3"/>
+  <path d="M34 76 Q60 82 86 76" stroke={S.dark} strokeWidth="1.1" fill="none" strokeLinecap="round" opacity=".28"/>
+  <ellipse cx="57" cy="62" rx="18" ry="5" fill={S.white} opacity=".18"/>
+
+  {/* thumb tucked */}
+  <Thumb x={80} y={85} len={32} w={13} curl={.85} side={1} pivotX={80} pivotY={85}/>
+
+  <Wrist y={106} w={52}/>
+</g>
+```
+
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+FLAT ARM — the non-dominant forearm held horizontal
+Used as the base in FOREST
+───────────────────────────────────────────────────────────── */
+function FlatArm() {
+return (
+<g transform="translate(0,10)">
+{/* forearm horizontal across bottom */}
+<rect x="8" y="128" width="164" height="28" rx="14" fill={S.arm}/>
+<rect x="12" y="130" width="156" height="22" rx="11" fill={S.mid}/>
+{/* elbow crease */}
+<ellipse cx="22" cy="139" rx="9" ry="10" fill={S.dark} opacity=".3"/>
+{/* fist at end (just a rounded cap) */}
+<ellipse cx="172" cy="139" rx="14" ry="13" fill={S.mid}/>
+<ellipse cx="172" cy="139" rx="10" ry="9" fill={S.palm} opacity=".4"/>
+</g>
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+YES SIGN ANIMATION
+Closed fist, knuckles forward, nods down then up × 2
+Frame sequence: still → tilt-down → nod-forward → back × 2
+───────────────────────────────────────────────────────────── */
+function BSLYes() {
+// [translateY, rotateAngle, scale] per frame
+const FRAMES = [
+[0,  0,   1.0],  // 0 rest
+[6,  8,   1.0],  // 1 start nod
+[14, 16,  1.0],  // 2 full nod
+[14, 16,  1.0],  // 3 hold
+[6,  8,   1.0],  // 4 return
+[0,  0,   1.0],  // 5 rest
+[0,  0,   1.0],  // 6 pause
+[7,  10,  1.0],  // 7 second nod
+[15, 17,  1.0],  // 8 full nod 2
+[15, 17,  1.0],  // 9 hold
+[7,  10,  1.0],  // 10 return
+[0,  0,   1.0],  // 11 rest
+[0,  0,   1.0],  // 12 long pause
+[0,  0,   1.0],  // 13 long pause
+];
+const TIMING = [600,130,130,180,130,300,400,130,130,180,130,300,500,500];
+const [fi, setFi] = useState(0);
+useEffect(()=>{
+let idx=0;
+const go = ()=>{ idx=(idx+1)%FRAMES.length; setFi(idx); };
+let t = setTimeout(function run(){ go(); t=setTimeout(run,TIMING[idx]); }, TIMING[0]);
+return ()=>clearTimeout(t);
+},[]);
+const [ty, rot] = FRAMES[fi];
+
+return (
+<svg viewBox=“0 0 120 180” style={{width:“100%”,maxWidth:130,display:“block”,margin:“0 auto”}}>
+{/* motion trail */}
+{fi>=1&&fi<=3 && <ellipse cx="60" cy={100+ty*0.4} rx="22" ry="5" fill="#fbbf24" opacity={.12}/>}
+{fi>=7&&fi<=9 && <ellipse cx="60" cy={100+ty*0.4} rx="22" ry="5" fill="#fbbf24" opacity={.12}/>}
+<g transform={`translate(0,${ty}) rotate(${rot},60,130)`}
+style={{transition:“transform 0.11s cubic-bezier(.4,0,.2,1)”}}>
+<ClosedFist/>
+</g>
+</svg>
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+NO SIGN ANIMATION
+BOTH hands: closed fists, pinky (little finger) only extended
+upward. Hands face each other, move IN toward each other
+then back OUT × 2.
+Layout: left hand (mirrored) | right hand side by side
+───────────────────────────────────────────────────────────── */
+function BSLNo() {
+// inward offset per frame (both hands move toward centre)
+const FRAMES = [0, 8, 18, 24, 18, 8, 0, 8, 18, 24, 18, 8, 0, 0, 0];
+const TIMING = [500,120,120,200,120,120,300,120,120,200,120,120,400,400,400];
+const [fi, setFi] = useState(0);
+useEffect(()=>{
+let idx=0;
+const go=()=>{idx=(idx+1)%FRAMES.length;setFi(idx);};
+let t=setTimeout(function run(){go();t=setTimeout(run,TIMING[idx]);},TIMING[0]);
+return()=>clearTimeout(t);
+},[]);
+const inward = FRAMES[fi];
+const atPeak = fi===3||fi===9;
+
+return (
+<svg viewBox=“0 0 240 180” style={{width:“100%”,maxWidth:220,display:“block”,margin:“0 auto”}}>
+{/* flash at contact */}
+{atPeak && <ellipse cx="120" cy="95" rx="16" ry="8" fill="#f87171" opacity=".25"/>}
+
+```
+  {/* LEFT hand (mirrored) moves rightward */}
+  <g transform={`translate(${inward},0)`}
+     style={{transition:"transform 0.11s cubic-bezier(.4,0,.2,1)"}}>
+    <PinkyUpFist x={52} y={90} scale={0.88} mirror={true}/>
+  </g>
+
+  {/* RIGHT hand moves leftward */}
+  <g transform={`translate(${-inward},0)`}
+     style={{transition:"transform 0.11s cubic-bezier(.4,0,.2,1)"}}>
+    <PinkyUpFist x={168} y={90} scale={0.88}/>
+  </g>
+</svg>
+```
+
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+FOREST SIGN ANIMATION
+Non-dominant arm horizontal across body (shown at bottom).
+Dominant open hand placed at elbow of non-dominant arm,
+then rises upward and sways side to side like a tree.
+───────────────────────────────────────────────────────────── */
+function BSLForest() {
+// [translateY, rotateAngle] — hand rises then sways
+const FRAMES = [
+[40,  0],   // 0 start low (at elbow)
+[28, -4],   // 1 rising
+[14, -8],   // 2 rising more
+[2,  -12],  // 3 near top, leaning left
+[0,  -12],  // 4 full height left sway
+[0,  -6],   // 5
+[0,   0],   // 6 upright
+[0,   8],   // 7 right sway
+[0,  12],   // 8 full right
+[0,   6],   // 9
+[0,   0],   // 10 upright
+[0,  -8],   // 11 left again
+[0, -12],   // 12
+[0,  -6],   // 13
+[0,   0],   // 14 rest
+[0,   0],   // 15 pause
+[0,   0],   // 16 pause
+];
+const TIMING = [400,150,150,150,200,120,120,150,200,120,120,150,200,120,300,400,500];
+const [fi,setFi]=useState(0);
+useEffect(()=>{
+let idx=0;
+const go=()=>{idx=(idx+1)%FRAMES.length;setFi(idx);};
+let t=setTimeout(function run(){go();t=setTimeout(run,TIMING[idx]);},TIMING[0]);
+return()=>clearTimeout(t);
+},[]);
+const [ty,rot]=FRAMES[fi];
+
+return (
+<svg viewBox=“0 0 200 200” style={{width:“100%”,maxWidth:180,display:“block”,margin:“0 auto”}}>
+{/* non-dominant forearm — static horizontal */}
+<FlatArm/>
+{/* dominant hand rises from elbow area */}
+<g transform={`translate(0,${ty}) rotate(${rot},100,100)`}
+style={{transition:“transform 0.14s cubic-bezier(.4,0,.2,1)”}}>
+<OpenFlatHand x={100} y={100} scale={0.9}/>
+</g>
+</svg>
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+CITY SIGN ANIMATION
+Both hands with index finger pointing up.
+Dominant hand (right, top) taps DOWN onto tip of
+non-dominant (left, bottom) index finger × 2.
+───────────────────────────────────────────────────────────── */
+function BSLCity() {
+// dominant hand Y offset — taps downward
+const FRAMES = [0, 8, 16, 22, 16, 8, 0, 8, 16, 22, 16, 8, 0, 0, 0, 0];
+const TIMING = [500,120,120,180,120,120,350,120,120,180,120,120,400,400,500,500];
+const [fi,setFi]=useState(0);
+useEffect(()=>{
+let idx=0;
+const go=()=>{idx=(idx+1)%FRAMES.length;setFi(idx);};
+let t=setTimeout(function run(){go();t=setTimeout(run,TIMING[idx]);},TIMING[0]);
+return()=>clearTimeout(t);
+},[]);
+const tapY=FRAMES[fi];
+const atTap=fi===3||fi===9;
+
+return (
+<svg viewBox=“0 0 200 200” style={{width:“100%”,maxWidth:185,display:“block”,margin:“0 auto”}}>
+{/* non-dominant hand — left, lower, static, pointing up */}
+<g transform="translate(-22,30)">
+<IndexPointing x={80} y={110} scale={0.82} mirror={true}/>
+</g>
+
+```
+  {/* dominant hand — right, upper, taps down */}
+  <g transform={`translate(22,${tapY-30})`}
+     style={{transition:"transform 0.11s cubic-bezier(.4,0,.2,1)"}}>
+    <IndexPointing x={120} y={110} scale={0.82}/>
+  </g>
+
+  {/* tap flash between fingertips */}
+  {atTap && <ellipse cx="108" cy={112+tapY} rx="10" ry="5" fill="#60a5fa" opacity=".4"/>}
+</svg>
+```
+
+);
+}
+
+/* ─────────────────────────────────────────────────────────────
+SIGN WRAPPER — used in buttons (compact) & help modal (full)
+───────────────────────────────────────────────────────────── */
+const SIGN_COMPONENTS = { yes:BSLYes, no:BSLNo, forest:BSLForest, city:BSLCity };
+const SIGN_LABELS = {
+yes:    { hint:“Fist nods forward × 2”, color:”#fbbf24” },
+no:     { hint:“Both pinky-up, tap inward × 2”, color:”#f87171” },
+forest: { hint:“Hand rises from elbow, sways”, color:”#4ade80” },
+city:   { hint:“Index taps index × 2”, color:”#60a5fa” },
+};
+
+function SignAnim({sign, showHint=false}) {
+const Comp = SIGN_COMPONENTS[sign];
+const meta = SIGN_LABELS[sign];
+if(!Comp||!meta) return null;
+return (
+<div style={{display:“flex”,flexDirection:“column”,alignItems:“center”,gap:4,width:“100%”}}>
+<Comp/>
+{showHint && (
+<div style={{
+fontFamily:“Fredoka”,fontSize:12,color:meta.color,
+textAlign:“center”,lineHeight:1.4,padding:“0 4px”,
+background:`${meta.color}14`,borderRadius:8,
+padding:“4px 8px”,marginTop:2,
+}}>{meta.hint}</div>
+)}
+</div>
+);
+}
+
+const SignIllustrations = {
+yes:    <SignAnim sign="yes"  showHint={true}/>,
+no:     <SignAnim sign="no"   showHint={true}/>,
+forest: <SignAnim sign="forest" showHint={true}/>,
+city:   <SignAnim sign="city"  showHint={true}/>,
+};
+
+/* ═══════════════════════════════════════════════════════
+PARTICLES
+═══════════════════════════════════════════════════════ */
+function Particles({type}) {
+if (!type) return null;
+const confettiColors = [”#ffd232”,”#ff6b6b”,”#4ade80”,”#60a5fa”,”#f472b6”,”#a78bfa”];
+const count = type===“celebrate”?24:16;
+return (
+<div style={{position:“absolute”,inset:0,pointerEvents:“none”,overflow:“hidden”,zIndex:20}}>
+{Array.from({length:count}).map((_,i)=>(
+type===“celebrate” ? (
+<div key={i} style={{
+position:“absolute”,
+left:`${5+i*3.8}%`, bottom:“15%”,
+width:8+i%4*4, height:8+i%3*4,
+borderRadius: i%3===0?“50%”:i%3===1?“2px”:“0”,
+background:confettiColors[i%6],
+animation:`celebConfetti ${.8+i*.06}s ${i*.04}s ease-out forwards`,
+}}/>
+) : (
+<div key={i} style={{
+position:“absolute”,
+left:`${i*6.2}%`, top:”-10%”,
+fontSize:16+i%3*6,
+animation:`rainDrop ${.8+i*.08}s ${i*.05}s linear forwards`,
+}}>💧</div>
+)
+))}
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+XP BAR
+═══════════════════════════════════════════════════════ */
+function XPBar({xp, maxXp=100, level}) {
+const pct = Math.min(100,(xp/maxXp)*100);
+return (
+<div style={{display:“flex”,alignItems:“center”,gap:10}}>
+<div style={{
+background:C.panel, border:`2px solid ${C.border}`,
+borderRadius:20, padding:“3px 10px 3px 6px”,
+display:“flex”,alignItems:“center”,gap:6,
+boxShadow:“inset 0 2px 4px rgba(0,0,0,.4)”,
+}}>
+<div style={{
+fontFamily:”‘Press Start 2P’”, fontSize:8, color:C.accent,
+lineHeight:1, whiteSpace:“nowrap”,
+}}>LVL {level}</div>
+</div>
+<div style={{flex:1,height:14,background:”#0a0a1a”,borderRadius:10,border:`2px solid ${C.border}`,overflow:“hidden”,position:“relative”}}>
+<div style={{
+position:“absolute”,top:0,left:0,height:“100%”,
+width:`${pct}%`,
+background:`linear-gradient(90deg,${C.purple},${C.accent})`,
+borderRadius:10,transition:“width .8s cubic-bezier(.4,0,.2,1)”,
+boxShadow:`0 0 12px ${C.purple}88`,
+}}/>
+</div>
+<div style={{fontFamily:”‘Press Start 2P’”,fontSize:7,color:C.dim,whiteSpace:“nowrap”}}>{xp}/{maxXp}</div>
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+DIALOGUE BOX (game-style)
+═══════════════════════════════════════════════════════ */
+function DialogueBox({text, onNext, showNext, characterName=“Luna”}) {
+const [displayed, setDisplayed] = useState(””);
+const [done, setDone] = useState(false);
+const idx = useRef(0);
+
+useEffect(()=>{
+setDisplayed(””); setDone(false); idx.current=0;
+const iv = setInterval(()=>{
+if(idx.current < text.length) {
+setDisplayed(text.slice(0,++idx.current));
+} else { clearInterval(iv); setDone(true); }
+},28);
+return ()=>clearInterval(iv);
+},[text]);
+
+return (
+<div style={{
+background:`linear-gradient(135deg,${C.panel}ee,${C.deep}ee)`,
+border:`2px solid ${C.border}`,
+borderRadius:16, padding:“16px 20px 14px”,
+position:“relative”,
+boxShadow:`0 8px 40px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05)`,
+animation:“bubbleIn .4s cubic-bezier(.4,0,.2,1)”,
+}}>
+{/* Name tag */}
+<div style={{
+position:“absolute”,top:-14,left:16,
+background:`linear-gradient(90deg,${C.purple},${C.accent})`,
+borderRadius:6,padding:“3px 12px”,
+fontFamily:”‘Press Start 2P’”,fontSize:8,color:”#fff”,
+boxShadow:“0 2px 8px rgba(167,139,250,.5)”,
+}}>{characterName}</div>
+{/* corner pixels */}
+<div style={{position:“absolute”,top:6,right:6,width:6,height:6,borderRight:`2px solid ${C.accent}`,borderTop:`2px solid ${C.accent}`}}/>
+<div style={{position:“absolute”,bottom:6,left:6,width:6,height:6,borderLeft:`2px solid ${C.accent}`,borderBottom:`2px solid ${C.accent}`}}/>
+
+```
+  <p style={{
+    fontFamily:"Fredoka",fontSize:18,fontWeight:600,color:C.text,
+    lineHeight:1.55,minHeight:54, letterSpacing:.3,
+  }}>{displayed}</p>
+
+  {done && showNext && (
+    <div onClick={onNext} style={{
+      position:"absolute",bottom:10,right:14,
+      fontFamily:"'Press Start 2P'",fontSize:8,color:C.accent,
+      cursor:"pointer",animation:"float .8s ease-in-out infinite",
+    }}>▼</div>
+  )}
+</div>
+```
+
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+CHOICE BUTTONS
+═══════════════════════════════════════════════════════ */
+function ChoiceButton({choice, idx, onClick, disabled}) {
+const colors = {
+yes:  {bg:”#fbbf2420”,border:”#fbbf24”,glow:”#fbbf2466”},
+no:   {bg:”#f8717120”,border:”#f87171”,glow:”#f8717166”},
+forest:{bg:”#4ade8020”,border:”#4ade80”,glow:”#4ade8066”},
+city: {bg:”#60a5fa20”,border:”#60a5fa”,glow:”#60a5fa66”},
+}[choice.sign] || {bg:”#ffffff10”,border:”#ffffff40”,glow:”#ffffff33”};
+
+return (
+<button
+onClick={()=>!disabled&&onClick(choice)}
+style={{
+flex:1, minWidth:140,
+background:colors.bg,
+border:`2px solid ${colors.border}`,
+borderRadius:16, padding:“10px 8px 12px”,
+cursor: disabled?“not-allowed”:“pointer”,
+display:“flex”,flexDirection:“column”,alignItems:“center”,gap:4,
+opacity: disabled?.5:1,
+transition:“transform .15s,box-shadow .15s”,
+animation:`choiceIn .4s ${idx*.12}s cubic-bezier(.4,0,.2,1) both`,
+boxShadow:`0 0 20px ${colors.glow}`,
+position:“relative”,overflow:“hidden”,
+}}
+onMouseEnter={e=>{if(!disabled){e.currentTarget.style.transform=“translateY(-4px) scale(1.02)”;e.currentTarget.style.boxShadow=`0 12px 40px ${colors.glow}`;} }}
+onMouseLeave={e=>{e.currentTarget.style.transform=“none”;e.currentTarget.style.boxShadow=`0 0 20px ${colors.glow}`;}}
+>
+<SignAnim sign={choice.sign} showHint={false}/>
+<span style={{
+fontFamily:”‘Press Start 2P’”,fontSize:9,color:colors.border,
+letterSpacing:1,marginTop:2,
+}}>{choice.label}</span>
+</button>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+HELP MODAL
+═══════════════════════════════════════════════════════ */
+function HelpModal({choices, onClose}) {
+return (
+<div style={{
+position:“fixed”,inset:0,
+background:“rgba(0,0,0,.85)”,backdropFilter:“blur(10px)”,
+zIndex:200,display:“flex”,alignItems:“center”,justifyContent:“center”,
+}} onClick={onClose}>
+<div onClick={e=>e.stopPropagation()} style={{
+background:`linear-gradient(135deg,${C.panel},${C.deep})`,
+border:`2px solid ${C.border}`,borderRadius:24,
+padding:“32px 36px”,maxWidth:480,width:“90%”,
+boxShadow:“0 32px 80px rgba(0,0,0,.8)”,
+position:“relative”,
+}}>
+<div style={{position:“absolute”,top:12,right:16,cursor:“pointer”,color:C.dim,fontSize:20}} onClick={onClose}>✕</div>
+<div style={{fontFamily:”‘Press Start 2P’”,fontSize:13,color:C.accent,marginBottom:6,textAlign:“center”}}>HOW TO SIGN</div>
+<p style={{fontFamily:“Fredoka”,color:C.dim,fontSize:15,textAlign:“center”,marginBottom:24}}>
+Mimic the hand shape, then tap your choice below!
+</p>
+<div style={{display:“flex”,gap:16,justifyContent:“center”,flexWrap:“wrap”}}>
+{choices.map(c=>(
+<div key={c.sign} style={{
+background:“rgba(255,255,255,.04)”,border:`1px solid ${C.border}`,
+borderRadius:16,padding:“14px 12px 10px”,
+flex:“1 1 150px”,maxWidth:210,minWidth:140,
+display:“flex”,flexDirection:“column”,alignItems:“center”,gap:6,
+}}>
+<SignAnim sign={c.sign} showHint={true}/>
+<span style={{fontFamily:”‘Press Start 2P’”,fontSize:8,color:C.text,textAlign:“center”,marginTop:4}}>{c.label}</span>
+</div>
+))}
+</div>
+<button onClick={onClose} style={{
+display:“block”,margin:“24px auto 0”,
+background:`linear-gradient(135deg,${C.purple},${C.accent})`,
+color:“white”,border:“none”,borderRadius:30,padding:“12px 32px”,
+fontFamily:”‘Press Start 2P’”,fontSize:10,cursor:“pointer”,
+boxShadow:“0 4px 20px rgba(167,139,250,.4)”,
+}}>GOT IT!</button>
+</div>
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+CAMERA
+═══════════════════════════════════════════════════════ */
+function CameraView({active}) {
+const videoRef = useRef(null);
+const streamRef = useRef(null);
+useEffect(()=>{
+if(!active){streamRef.current?.getTracks().forEach(t=>t.stop());return;}
+navigator.mediaDevices?.getUserMedia({video:true}).then(s=>{
+streamRef.current=s;
+if(videoRef.current) videoRef.current.srcObject=s;
+}).catch(()=>{});
+return()=>streamRef.current?.getTracks().forEach(t=>t.stop());
+},[active]);
+return (
+<div style={{
+borderRadius:12,overflow:“hidden”,
+border:`2px solid ${C.border}`,
+position:“relative”,background:”#000”,
+aspectRatio:“4/3”,
+}}>
+<video ref={videoRef} autoPlay muted playsInline style={{width:“100%”,height:“100%”,objectFit:“cover”,transform:“scaleX(-1)”}}/>
+{/* corner decorations */}
+{[[0,0,“top”,“left”],[0,“auto”,“top”,“right”],[“auto”,0,“bottom”,“left”],[“auto”,“auto”,“bottom”,“right”]].map(([t,b,tt,ll],i)=>(
+<div key={i} style={{position:“absolute”,top:t,bottom:b,left:ll===“left”?0:“auto”,right:ll===“right”?0:“auto”,width:16,height:16,
+borderTop:i<2?`2px solid ${C.accent}`:“none”,
+borderBottom:i>=2?`2px solid ${C.accent}`:“none”,
+borderLeft:i%2===0?`2px solid ${C.accent}`:“none”,
+borderRight:i%2===1?`2px solid ${C.accent}`:“none”,
+}}/>
+))}
+<div style={{position:“absolute”,bottom:6,left:“50%”,transform:“translateX(-50%)”,
+background:“rgba(0,0,0,.7)”,border:`1px solid ${C.border}`,borderRadius:20,
+padding:“3px 12px”,fontFamily:”‘Press Start 2P’”,fontSize:7,color:C.green,
+whiteSpace:“nowrap”,
+}}>● REC</div>
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+WORD UNLOCK BADGE
+═══════════════════════════════════════════════════════ */
+function WordBadge({word, isNew}) {
+return (
+<div style={{
+background: isNew?“rgba(250,210,50,.15)”:“rgba(255,255,255,.04)”,
+border:`1px solid ${isNew?C.accent:C.border}`,
+borderRadius:20,padding:“4px 12px”,
+fontFamily:”‘Press Start 2P’”,fontSize:7,
+color:isNew?C.accent:C.dim,
+boxShadow:isNew?`0 0 12px ${C.accent}44`:“none”,
+animation:isNew?“glowPulse 2s ease-in-out infinite”:“none”,
+transition:“all .4s”,
+}}>🔓 {word}</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+TITLE SCREEN
+═══════════════════════════════════════════════════════ */
+function TitleScreen({onStart}) {
+return (
+<div style={{
+position:“relative”,width:“100%”,height:“100%”,
+display:“flex”,flexDirection:“column”,alignItems:“center”,justifyContent:“center”,
+overflow:“hidden”,
+}}>
+<NightVillageBg/>
+<Starfield/>
+<div style={{position:“relative”,zIndex:10,textAlign:“center”,padding:“0 20px”}}>
+<div style={{
+fontFamily:”‘Press Start 2P’”,fontSize:28,color:C.accent,
+textShadow:`0 0 40px ${C.accent}, 0 0 80px ${C.accent}44`,
+animation:“titlePop .8s cubic-bezier(.4,0,.2,1) both”,
+lineHeight:1.4,
+}}>BSL<br/>QUEST</div>
+<div style={{
+fontFamily:“Fredoka”,fontSize:18,color:C.dim,marginTop:16,marginBottom:40,
+animation:“titlePop .8s .2s cubic-bezier(.4,0,.2,1) both”,
+}}>Learn British Sign Language<br/>through story & adventure</div>
+<div style={{
+width:120,margin:“0 auto 40px”,
+animation:“titlePop .8s .1s cubic-bezier(.4,0,.2,1) both”,
+}}>
+<Character mood="wave"/>
+</div>
+<button onClick={onStart} style={{
+background:`linear-gradient(135deg,${C.purple},${C.accent})`,
+border:“none”,borderRadius:12,padding:“16px 48px”,
+fontFamily:”‘Press Start 2P’”,fontSize:13,color:“white”,cursor:“pointer”,
+boxShadow:`0 8px 32px rgba(167,139,250,.5)`,
+animation:`glowPulse 2s ease-in-out infinite, titlePop .8s .4s cubic-bezier(.4,0,.2,1) both`,
+letterSpacing:1,
+}}>▶  START</button>
+<p style={{fontFamily:”‘Press Start 2P’”,fontSize:7,color:C.dim,marginTop:20}}>
+CHAPTER 1: THE LOST CAT
+</p>
+</div>
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+ENDING SCREEN
+═══════════════════════════════════════════════════════ */
+function EndingScreen({type, onRestart, xp}) {
+const isForest = type===“forest”;
+return (
+<div style={{position:“relative”,width:“100%”,height:“100%”,overflow:“hidden”,display:“flex”,flexDirection:“column”}}>
+{isForest ? <ForestBg/> : <CityBg/>}
+<Starfield/>
+<div style={{position:“relative”,zIndex:10,flex:1,display:“flex”,flexDirection:“column”,alignItems:“center”,justifyContent:“center”,padding:24}}>
+<div style={{fontSize:60,animation:“float 2s ease-in-out infinite”,marginBottom:8}}>🐱</div>
+<div style={{fontFamily:”‘Press Start 2P’”,fontSize:18,color:C.accent,textAlign:“center”,
+textShadow:`0 0 30px ${C.accent}`,marginBottom:12,animation:“titlePop .6s ease both”}}>
+YOU FOUND<br/>THE CAT!
+</div>
+<div style={{fontFamily:“Fredoka”,fontSize:18,color:C.text,marginBottom:8}}>
+{isForest?“She was hiding behind a great oak tree 🌳”:“She was sitting on a city rooftop 🏙️”}
+</div>
+<div style={{
+background:`linear-gradient(135deg,${C.panel}dd,${C.deep}dd)`,
+border:`2px solid ${C.accent}`,borderRadius:16,padding:“16px 28px”,marginTop:20,marginBottom:28,
+textAlign:“center”,boxShadow:`0 0 30px ${C.accent}44`,
+}}>
+<div style={{fontFamily:”‘Press Start 2P’”,fontSize:9,color:C.dim,marginBottom:6}}>XP EARNED</div>
+<div style={{fontFamily:”‘Press Start 2P’”,fontSize:22,color:C.accent}}>+{xp}</div>
+<div style={{fontFamily:“Fredoka”,fontSize:15,color:C.green,marginTop:6}}>
+✓ YES  ✓ NO  ✓ {isForest?“FOREST”:“CITY”}
+</div>
+</div>
+<button onClick={onRestart} style={{
+background:`linear-gradient(135deg,${isForest?"#166534":"#1e3a8a"},${isForest?"#4ade80":"#60a5fa"})`,
+border:“none”,borderRadius:12,padding:“14px 40px”,
+fontFamily:”‘Press Start 2P’”,fontSize:11,color:“white”,cursor:“pointer”,
+boxShadow:`0 8px 24px ${isForest?"rgba(74,222,128,.3)":"rgba(96,165,250,.3)"}`,
+}}>▶  PLAY AGAIN</button>
+</div>
+</div>
+);
+}
+
+/* ═══════════════════════════════════════════════════════
+STORY DATA
+═══════════════════════════════════════════════════════ */
+const STORY = {
+scene1: {
+id:“scene1”, mood:“wave”, bg:“night”,
+lines:[“Hi there! I’m Luna! 🐾”,“Will you help me find my cat?”],
+question:“Sign your answer!”,
+choices:[{label:“YES”,sign:“yes”,next:“scene_yes”},{label:“NO”,sign:“no”,next:“scene_no”}],
+xpGain:10,
+},
+scene_no: {
+id:“scene_no”, mood:“sad”, bg:“night”,
+lines:[“That’s not the sign for YES…”,“Try again! 🌧️”],
+question:“Will you help me?”,
+choices:[{label:“YES”,sign:“yes”,next:“scene_yes”},{label:“NO”,sign:“no”,next:“scene_no2”}],
+xpGain:0,
+},
+scene_no2: {
+id:“scene_no2”, mood:“pleading”, bg:“night”,
+lines:[“We don’t have all day…”,“PLEASE help me find her! 🥺”],
+question:“One more chance!”,
+choices:[{label:“YES”,sign:“yes”,next:“scene_yes”},{label:“NO”,sign:“no”,next:“scene_yes”}],
+xpGain:0,
+},
+scene_yes: {
+id:“scene_yes”, mood:“excited”, bg:“night”,
+lines:[“YAY! Thank you so much! ✨”,“I lost my cat Mochi! 🐱”,“Where should we look first?”],
+question:“Choose your path!”,
+choices:[{label:“FOREST”,sign:“forest”,next:“end_forest”},{label:“CITY”,sign:“city”,next:“end_city”}],
+xpGain:20,
+},
+end_forest: { id:“end_forest”, isEnding:true, endingType:“forest”, xpGain:30 },
+end_city:   { id:“end_city”,   isEnding:true, endingType:“city”,   xpGain:30 },
+};
+
+/* ═══════════════════════════════════════════════════════
+MAIN GAME
+═══════════════════════════════════════════════════════ */
+export default function App() {
+const [screen, setScreen] = useState(“title”);
+const [sceneId, setSceneId] = useState(“scene1”);
+const [lineIdx, setLineIdx] = useState(0);
+const [phase, setPhase] = useState(“dialogue”); // dialogue | choose
+const [particles, setParticles] = useState(null);
+const [showHelp, setShowHelp] = useState(false);
+const [showCamera, setShowCamera] = useState(false);
+const [xp, setXp] = useState(0);
+const [level, setLevel] = useState(1);
+const [unlocked, setUnlocked] = useState([“YES”,“NO”]);
+const [newWord, setNewWord] = useState(null);
+const [choiceDisabled, setChoiceDisabled] = useState(false);
+const [shaking, setShaking] = useState(false);
+const [walking, setWalking] = useState(false);
+const [endingXp, setEndingXp] = useState(0);
+const autoRef = useRef(null);
+
+const scene = STORY[sceneId];
+
+const gainXp = (amt) => {
+if(!amt) return;
+setXp(prev=>{
+const next = prev+amt;
+if(next >= 100*(level)) setLevel(l=>l+1);
+return next;
+});
+};
+
+const nextLine = useCallback(()=>{
+if(!scene||scene.isEnding) return;
+if(lineIdx < scene.lines.length-1) {
+setLineIdx(i=>i+1);
+} else {
+setPhase(“choose”);
+}
+},[scene,lineIdx]);
+
+// Auto-advance for slower readers
+useEffect(()=>{
+if(phase!==“dialogue”) return;
+clearTimeout(autoRef.current);
+autoRef.current = setTimeout(nextLine, 3500);
+return()=>clearTimeout(autoRef.current);
+},[phase,lineIdx,nextLine]);
+
+useEffect(()=>{
+setLineIdx(0); setPhase(“dialogue”); setParticles(null);
+setChoiceDisabled(false); setWalking(true);
+setTimeout(()=>setWalking(false),700);
+},[sceneId]);
+
+const handleChoice = (choice) => {
+if(choiceDisabled) return;
+setChoiceDisabled(true);
+
+```
+const isPositive = choice.next!=="scene_no" && choice.next!=="scene_no2";
+setParticles(isPositive?"celebrate":"rain");
+
+// Unlock new word
+if(!unlocked.includes(choice.label)) {
+  setUnlocked(w=>[...w,choice.label]);
+  setNewWord(choice.label);
+  setTimeout(()=>setNewWord(null),3000);
+}
+
+gainXp(scene.xpGain||0);
+
+if(!isPositive) {
+  setShaking(true);
+  setTimeout(()=>setShaking(false),500);
+}
+
+setTimeout(()=>{
+  setParticles(null);
+  if(choice.next.startsWith("end_")) {
+    setEndingXp(STORY[choice.next].xpGain);
+    gainXp(STORY[choice.next].xpGain);
+    setScreen("ending_"+STORY[choice.next].endingType);
+  } else {
+    setSceneId(choice.next);
+  }
+},1600);
+```
+
+};
+
+const restart = () => {
+setScreen(“game”);
+setSceneId(“scene1”);
+setXp(0); setLevel(1);
+setUnlocked([“YES”,“NO”]);
+setNewWord(null);
+};
+
+const bgMap = { night:<NightVillageBg/>, forest:<ForestBg/>, city:<CityBg/> };
+
+/* ── TITLE ── */
+if(screen===“title”) return (
+<div style={{width:“100vw”,height:“100vh”,position:“relative”}}>
+<style>{GLOBAL_CSS}</style>
+<TitleScreen onStart={()=>setScreen(“game”)}/>
+</div>
+);
+
+/* ── ENDINGS ── */
+if(screen.startsWith(“ending_”)) return (
+<div style={{width:“100vw”,height:“100vh”,position:“relative”}}>
+<style>{GLOBAL_CSS}</style>
+<EndingScreen type={screen.replace(“ending_”,””)} onRestart={restart} xp={endingXp}/>
+</div>
+);
+
+/* ── GAME ── */
+return (
+<div style={{width:“100vw”,height:“100vh”,position:“relative”,overflow:“hidden”,display:“flex”,flexDirection:“column”}}>
+<style>{GLOBAL_CSS}</style>
+
+```
+  {/* BG */}
+  {bgMap[scene?.bg||"night"]}
+  <Starfield/>
+
+  {/* Particles */}
+  <Particles type={particles}/>
+
+  {/* HUD */}
+  <div style={{
+    position:"relative",zIndex:10,
+    padding:"12px 16px 8px",
+    background:`linear-gradient(180deg,rgba(10,10,26,.9),transparent)`,
+  }}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <div style={{fontFamily:"'Press Start 2P'",fontSize:9,color:C.accent,textShadow:`0 0 12px ${C.accent}`}}>
+        BSL QUEST
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        {/* word badges */}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+          {unlocked.map(w=><WordBadge key={w} word={w} isNew={w===newWord}/>)}
+        </div>
+      </div>
+    </div>
+    <XPBar xp={xp%100} maxXp={100} level={level}/>
+  </div>
+
+  {/* Scene area — character + dialogue */}
+  <div style={{
+    flex:1,position:"relative",zIndex:5,
+    display:"flex",flexDirection:"column",justifyContent:"flex-end",
+    padding:"0 16px 16px",
+    animation:sceneId.startsWith("scene")?"slideSceneIn .5s ease":"none",
+  }}>
+    {/* Character */}
+    <div style={{
+      position:"absolute",
+      left:20, bottom: phase==="choose"?260:200,
+      width:130, height:160,
+      animation: shaking?"shake .4s ease":"none",
+      transition:"bottom .5s cubic-bezier(.4,0,.2,1)",
+      zIndex:6,
+    }}>
+      <Character mood={scene?.mood||"normal"} walking={walking}/>
+    </div>
+
+    {/* Camera (small overlay) */}
+    {showCamera && (
+      <div style={{
+        position:"absolute",right:12,bottom: phase==="choose"?290:220,
+        width:160,zIndex:15,
+        animation:"bubbleIn .3s ease",
+      }}>
+        <CameraView active={showCamera}/>
+      </div>
+    )}
+
+    {/* Dialogue */}
+    {phase==="dialogue" && scene && !scene.isEnding && (
+      <div style={{marginLeft:140,marginBottom:12,zIndex:7,position:"relative"}}>
+        <DialogueBox
+          text={scene.lines[lineIdx]}
+          onNext={nextLine}
+          showNext={lineIdx<(scene.lines.length-1)}
+          characterName="Luna ✨"
+        />
+      </div>
+    )}
+
+    {/* Choices */}
+    {phase==="choose" && scene && !scene.isEnding && (
+      <div style={{zIndex:7,position:"relative"}}>
+        {/* Question */}
+        <div style={{
+          textAlign:"center",marginBottom:12,
+          fontFamily:"'Press Start 2P'",fontSize:9,
+          color:C.dim,letterSpacing:1,
+        }}>{scene.question}</div>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          {scene.choices.map((c,i)=>(
+            <ChoiceButton key={c.sign} choice={c} idx={i} onClick={handleChoice} disabled={choiceDisabled}/>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+
+  {/* Bottom toolbar */}
+  <div style={{
+    position:"relative",zIndex:10,
+    background:`linear-gradient(transparent,rgba(10,10,26,.95))`,
+    padding:"8px 16px 14px",
+    display:"flex",justifyContent:"space-between",alignItems:"center",
+  }}>
+    <div style={{display:"flex",gap:10}}>
+      <button onClick={()=>setShowCamera(v=>!v)} style={{
+        background: showCamera?`${C.green}22`:"rgba(255,255,255,.05)",
+        border:`1px solid ${showCamera?C.green:C.border}`,
+        borderRadius:8, padding:"6px 14px",
+        fontFamily:"'Press Start 2P'",fontSize:8,
+        color:showCamera?C.green:C.dim,cursor:"pointer",
+      }}>📷 {showCamera?"HIDE":"CAM"}</button>
+    </div>
+    <button onClick={()=>setShowHelp(true)} style={{
+      background:`linear-gradient(135deg,${C.purple}33,${C.accent}22)`,
+      border:`1px solid ${C.accent}`,
+      borderRadius:8,padding:"6px 18px",
+      fontFamily:"'Press Start 2P'",fontSize:8,color:C.accent,
+      cursor:"pointer",
+      animation: phase==="choose"?"glowPulse 1.5s ease-in-out infinite":"none",
+      boxShadow: phase==="choose"?`0 0 16px ${C.accent}44`:"none",
+    }}>❓ HELP</button>
+  </div>
+
+  {/* Help modal */}
+  {showHelp && scene?.choices && (
+    <HelpModal choices={scene.choices} onClose={()=>setShowHelp(false)}/>
+  )}
+</div>
+```
+
+);
+}
